@@ -70,7 +70,8 @@ export default function OnboardingScreen() {
             styles.iconBig,
             {
               backgroundColor: step.gradient[0],
-              shadowColor: step.gradient[1],
+              // 59 = 35% opacity as a hex alpha
+              boxShadow: `0px 12px 16px ${step.gradient[1]}59`,
             },
           ]}
         >
@@ -127,10 +128,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 48,
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 12,
   },
   title: {
     fontSize: 28,

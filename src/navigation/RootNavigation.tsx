@@ -16,8 +16,10 @@ SplashScreen.preventAutoHideAsync().catch(() => {
   /* already prevented or unavailable */
 });
 
+// The screen kept underneath when the app opens on a deep link. Must name a
+// direct child of this layout; (app) itself opens on its (tabs) group.
 export const unstable_settings = {
-  anchor: '(app)/(tabs)/home',
+  anchor: '(app)',
 };
 
 function NativeSplashSync({ fontsReady }: { fontsReady: boolean }) {

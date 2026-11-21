@@ -12,11 +12,23 @@ if (!supabaseUrl || !supabaseKey) {
   );
 }
 
+// With web "output": "static", Expo Router also renders pages in Node.js, where
+// there is no `window` and AsyncStorage's web version would crash. On the server,
+// use a storage that does nothing and don't restore or refresh a session: the
+// browser takes over after hydration with the real storage.
+const isServer = Platform.OS === 'web' && typeof window === 'undefined';
+
+const noopStorage = {
+  getItem: async (_key: string) => null,
+  setItem: async (_key: string, _value: string) => {},
+  removeItem: async (_key: string) => {},
+};
+
 export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
-    storage: AsyncStorage,
-    autoRefreshToken: true,
-    persistSession: true,
+    storage: isServer ? noopStorage : AsyncStorage,
+    autoRefreshToken: !isServer,
+    persistSession: !isServer,
     detectSessionInUrl: false,
   },
 });
