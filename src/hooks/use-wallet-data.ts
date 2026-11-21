@@ -160,8 +160,11 @@ export function useWalletRealtime() {
     if (!uid) return;
     const refresh = () => queryClient.invalidateQueries({ queryKey: walletKeys.all(uid) });
 
+    // Unique topic per mount: supabase.channel() returns an existing channel with
+    // the same name, and removeChannel() is async, so a quick remount (Strict Mode,
+    // Fast Refresh) would otherwise get the old, already-subscribed channel back.
     const channel = supabase
-      .channel(`wallet-${uid}`)
+      .channel(`wallet-${uid}-${Math.random().toString(36).slice(2)}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'wallets', filter: `user_id=eq.${uid}` },
