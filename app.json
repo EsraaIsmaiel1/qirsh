@@ -59,7 +59,8 @@
             "./assets/fonts/ReadexPro-Bold.ttf"
           ]
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
