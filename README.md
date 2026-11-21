@@ -1,6 +1,6 @@
-# Pay Wallet
+# Qirsh (قرش)
 
-Pay Wallet is a cross-platform mobile app (iOS, Android, and web) for managing a digital wallet: balances, transactions, analytics, sending and receiving money, and expenses. It is built with [Expo](https://expo.dev) and [Expo Router](https://docs.expo.dev/router/introduction/) for file-based navigation.
+*Every qirsh counts.* Qirsh is a cross-platform mobile app (iOS, Android, and web) for managing a digital wallet: balances, transactions, analytics, sending and receiving money, and expenses. It is built with [Expo](https://expo.dev) and [Expo Router](https://docs.expo.dev/router/introduction/) for file-based navigation.
 
 ## Features
 
@@ -78,7 +78,9 @@ src/                    # Screens, components, stores, services, hooks
 assets/                 # Images and static assets
 ```
 
-Deep link / app scheme: **`paywallet`** (see `app.json`).
+Deep link / app scheme: **`qirsh`** (see `app.json`).
+
+Brand assets (logos, app icons, fonts, colours) live in `branding/`; see `branding/README.md`.
 
 ## Learn more
 

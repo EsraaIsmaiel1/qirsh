@@ -1,32 +1,94 @@
-import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { format, parseISO } from 'date-fns';
+import React, { useMemo } from 'react';
+import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/src/components/ui/Text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CategorySpendingBars, MonthlySpendingLine } from '@/src/components/wallet/AnalyticsCharts';
 import type { WalletPalette } from '@/src/utils/wallet-theme';
 import { DynamicIcon } from '@/src/components/wallet/DynamicIcon';
 import { Header } from '@/src/components/wallet/Header';
-import { useAnalyticsData } from '@/src/hooks/use-wallet-data';
+import { EmptyState, ErrorState, LoadingState } from '@/src/components/wallet/States';
+import {
+  useExpenseCategories,
+  useMonthlyTotals,
+  useRefreshWallet,
+} from '@/src/hooks/use-wallet-data';
+import { walletErrorMessage } from '@/src/services/wallet-api';
 import { useWalletTheme } from '@/src/store/wallet-theme-store';
 
 export default function AnalyticsScreen() {
   const { palette } = useWalletTheme();
-  const { categorySpending, monthlySpending, totalExpenses } = useAnalyticsData();
-  const totalIncome = 15700;
-  const savings = totalIncome - totalExpenses;
+  const categoriesQuery = useExpenseCategories();
+  const monthlyQuery = useMonthlyTotals(6);
+  const refreshWallet = useRefreshWallet();
+
+  const { categorySpending, totalExpenses } = useMemo(() => {
+    const spent = (categoriesQuery.data ?? []).filter((c) => c.spentCents > 0);
+    return {
+      categorySpending: spent.map((c) => ({ name: c.name, value: c.spentCents, color: c.color })),
+      totalExpenses: spent.reduce((sum, c) => sum + c.spentCents, 0),
+    };
+  }, [categoriesQuery.data]);
+
+  const monthlySpending = useMemo(
+    () =>
+      (monthlyQuery.data ?? []).map((m) => ({
+        month: format(parseISO(m.month), 'MMM'),
+        amount: m.outCents / 100,
+      })),
+    [monthlyQuery.data]
+  );
+
+  // Summary cards cover the current calendar month (last row of monthly_totals).
+  const thisMonth = monthlyQuery.data?.[monthlyQuery.data.length - 1];
+  const incomeCents = thisMonth?.inCents ?? 0;
+  const outCents = thisMonth?.outCents ?? 0;
+  const savingsCents = incomeCents - outCents;
+  const whole = (cents: number) => Math.round(cents / 100).toLocaleString('en-US');
+
+  const isLoading = categoriesQuery.isLoading || monthlyQuery.isLoading;
+  const error = categoriesQuery.error ?? monthlyQuery.error;
+  const isRefetching = categoriesQuery.isRefetching || monthlyQuery.isRefetching;
+
+  if (isLoading || error) {
+    return (
+      <SafeAreaView style={[styles.safe, { backgroundColor: palette.background }]} edges={['top']}>
+        <Header title="Analytics" />
+        {isLoading ? (
+          <LoadingState />
+        ) : (
+          <ErrorState message={walletErrorMessage(error)} onRetry={() => refreshWallet()} />
+        )}
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: palette.background }]} edges={['top']}>
       <Header title="Analytics" />
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={() => refreshWallet()}
+            tintColor={palette.primary}
+          />
+        }
+      >
+        <Text style={{ color: palette.mutedForeground, fontSize: 13 }}>
+          This month ({format(new Date(), 'MMMM yyyy')})
+        </Text>
         <View style={styles.summaryRow}>
           <SummaryCard
             palette={palette}
             icon="trending-up"
             iconBg={palette.successLight}
             iconColor={palette.success}
-            label="Income"
-            value={`+${totalIncome.toLocaleString()}`}
+            label="Money In"
+            value={`+${whole(incomeCents)}`}
             valueColor={palette.success}
           />
           <SummaryCard
@@ -34,8 +96,8 @@ export default function AnalyticsScreen() {
             icon="trending-down"
             iconBg={palette.errorLight}
             iconColor={palette.error}
-            label="Expenses"
-            value={`-${totalExpenses.toLocaleString()}`}
+            label="Money Out"
+            value={`-${whole(outCents)}`}
             valueColor={palette.error}
           />
           <SummaryCard
@@ -43,8 +105,8 @@ export default function AnalyticsScreen() {
             icon="wallet"
             iconBg={`${palette.primary}33`}
             iconColor={palette.primary}
-            label="Savings"
-            value={savings.toLocaleString()}
+            label="Net"
+            value={`${savingsCents < 0 ? '-' : ''}${whole(Math.abs(savingsCents))}`}
             valueColor={palette.primary}
           />
         </View>
@@ -54,7 +116,15 @@ export default function AnalyticsScreen() {
             Spending by Category
           </Text>
           <View style={styles.piePlaceholder}>
-            <CategorySpendingBars data={categorySpending} total={totalExpenses} palette={palette} />
+            {categorySpending.length > 0 ? (
+              <CategorySpendingBars data={categorySpending} total={totalExpenses} palette={palette} />
+            ) : (
+              <EmptyState
+                icon="trending-down"
+                title="No expenses this month"
+                subtitle="Add an expense to see where your money goes."
+              />
+            )}
           </View>
         </View>
 

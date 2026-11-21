@@ -1,8 +1,10 @@
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/src/components/ui/Text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { QirshMark } from '@/src/components/brand/QirshMark';
 import { DynamicIcon } from '@/src/components/wallet/DynamicIcon';
 import { GradientButton } from '@/src/components/wallet/GradientButton';
 import { useWalletTheme } from '@/src/store/wallet-theme-store';
@@ -11,10 +13,10 @@ const STEPS = [
   {
     id: 1,
     icon: 'wallet' as const,
-    title: 'Digital Wallet',
+    title: 'Welcome to Qirsh',
     description:
       'Securely store and manage your money in one place. Send and receive payments instantly.',
-    gradient: ['#6366f1', '#818cf8'] as const,
+    gradient: ['#0B5F57', '#0B5F57'] as const,
   },
   {
     id: 2,
@@ -22,7 +24,7 @@ const STEPS = [
     title: 'Track Expenses',
     description:
       'Monitor your spending with detailed analytics and insights. Set budgets for different categories.',
-    gradient: ['#10b981', '#34d399'] as const,
+    gradient: ['#13877B', '#13877B'] as const,
   },
   {
     id: 3,
@@ -30,7 +32,7 @@ const STEPS = [
     title: 'Secure & Safe',
     description:
       'Bank-level security with biometric authentication. Your data is encrypted and protected.',
-    gradient: ['#4f46e5', '#9333ea'] as const,
+    gradient: ['#062E2A', '#062E2A'] as const,
   },
 ];
 
@@ -72,7 +74,11 @@ export default function OnboardingScreen() {
             },
           ]}
         >
-          <DynamicIcon name={step.icon} size={56} color="#fff" />
+          {currentStep === 0 ? (
+            <QirshMark size={72} body="#FAF6EC" dots="#F0B341" />
+          ) : (
+            <DynamicIcon name={step.icon} size={56} color="#fff" />
+          )}
         </View>
         <Text style={[styles.title, { color: palette.foreground }]}>{step.title}</Text>
         <Text style={[styles.desc, { color: palette.mutedForeground }]}>{step.description}</Text>

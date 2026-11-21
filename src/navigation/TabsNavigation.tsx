@@ -7,6 +7,7 @@ import React from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 
 import { HapticTab } from '@/src/components/HapticTab';
+import { FONT } from '@/src/components/ui/Text';
 import type { WalletPalette } from '@/src/utils/wallet-theme';
 import { useWalletTheme } from '@/src/store/wallet-theme-store';
 
@@ -26,7 +27,7 @@ export default function AppTabsLayout() {
           paddingBottom: Platform.OS === 'ios' ? 24 : 12,
           minHeight: Platform.OS === 'ios' ? 88 : 80,
         },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600', marginTop: 6 },
+        tabBarLabelStyle: { fontSize: 11, fontFamily: FONT.semibold, marginTop: 6 },
         tabBarButton: HapticTab,
       }}
     >

@@ -1,25 +1,27 @@
 {
   "expo": {
-    "name": "pay-wallet",
-    "slug": "pay-wallet",
+    "name": "Qirsh",
+    "slug": "qirsh",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "paywallet",
+    "scheme": "qirsh",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#0B5F57",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
+      ]
     },
     "web": {
       "output": "static",
@@ -30,20 +32,45 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/icon.png",
-          "imageWidth": 96,
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 120,
           "resizeMode": "contain",
-          "backgroundColor": "#f8f9fc",
+          "backgroundColor": "#FAF6EC",
           "dark": {
-            "backgroundColor": "#0f0f1a"
+            "image": "./assets/images/splash-icon-dark.png",
+            "backgroundColor": "#0A1412"
           }
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow Qirsh to use Face ID to confirm payments."
+        }
+      ],
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/ReadexPro-Regular.ttf",
+            "./assets/fonts/ReadexPro-Medium.ttf",
+            "./assets/fonts/ReadexPro-SemiBold.ttf",
+            "./assets/fonts/ReadexPro-Bold.ttf"
+          ]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "5922f84f-8ebf-47b2-bc6d-c5515fdd1599"
+      }
+    },
+    "owner": "esraaesmaiel"
   }
 }

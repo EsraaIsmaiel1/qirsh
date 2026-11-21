@@ -1,10 +1,12 @@
 import { Redirect, Stack } from 'expo-router';
 import { ActivityIndicator, View } from 'react-native';
 
+import { useWalletRealtime } from '@/src/hooks/use-wallet-data';
 import { useSession } from '@/src/store/session-store';
 
 export default function AppLayout() {
   const { isReady, isSignedIn } = useSession();
+  useWalletRealtime();
 
   if (!isReady) {
     return (
@@ -25,6 +27,7 @@ export default function AppLayout() {
       <Stack.Screen name="receive" />
       <Stack.Screen name="add-expense" />
       <Stack.Screen name="transaction-detail/[id]" />
+      <Stack.Screen name="change-pin" />
     </Stack>
   );
 }

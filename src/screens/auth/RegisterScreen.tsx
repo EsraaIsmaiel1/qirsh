@@ -8,20 +8,22 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from 'react-native';
+import { Text, TextInput } from '@/src/components/ui/Text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DynamicIcon } from '@/src/components/wallet/DynamicIcon';
 import { GradientButton } from '@/src/components/wallet/GradientButton';
-import { useSession } from '@/src/store/session-store';
+import { authErrorMessage, useSession } from '@/src/store/session-store';
 import { useWalletTheme } from '@/src/store/wallet-theme-store';
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MIN_PASSWORD = 8;
 
 export default function RegisterScreen() {
   const router = useRouter();
-  const { signIn } = useSession();
+  const { signUp } = useSession();
   const { palette } = useWalletTheme();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -30,22 +32,43 @@ export default function RegisterScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [terms, setTerms] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleRegister = () => {
-    if (password !== confirm) {
-      Alert.alert('Error', 'Passwords do not match');
-      return;
-    }
-    if (!terms) {
-      Alert.alert('Terms', 'Please accept the Terms of Service and Privacy Policy');
-      return;
-    }
+  const validate = (): string | null => {
+    if (name.trim().length < 2) return 'Please enter your full name.';
+    if (!EMAIL_RE.test(email.trim())) return 'Please enter a valid email address.';
+    if (password.length < MIN_PASSWORD)
+      return `Password must be at least ${MIN_PASSWORD} characters.`;
+    if (!/[A-Za-z]/.test(password) || !/\d/.test(password))
+      return 'Password must contain at least one letter and one number.';
+    if (password !== confirm) return 'Passwords do not match.';
+    if (!terms) return 'Please accept the Terms of Service and Privacy Policy.';
+    return null;
+  };
+
+  const handleRegister = async () => {
+    if (loading) return;
+    const problem = validate();
+    setError(problem);
+    if (problem) return;
+
     setLoading(true);
-    setTimeout(async () => {
+    try {
+      const { needsEmailConfirmation } = await signUp(name, email, password);
+      if (needsEmailConfirmation) {
+        Alert.alert(
+          'Check your email',
+          `We sent a confirmation link to ${email.trim()}. Confirm it, then sign in.`
+        );
+        router.replace('/(auth)/login');
+      } else {
+        router.replace('/(app)/(tabs)/home');
+      }
+    } catch (e) {
+      setError(authErrorMessage(e));
+    } finally {
       setLoading(false);
-      await signIn();
-      router.replace('/(app)/(tabs)/home');
-    }, 1200);
+    }
   };
 
   return (
@@ -161,6 +184,12 @@ export default function RegisterScreen() {
               </Text>
             </Pressable>
 
+            {error ? (
+              <Text style={[styles.error, { color: palette.error }]} accessibilityRole="alert">
+                {error}
+              </Text>
+            ) : null}
+
             <GradientButton
               title={loading ? 'Creating Account...' : 'Create Account'}
               onPress={handleRegister}
@@ -186,6 +215,7 @@ export default function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
+  error: { fontSize: 14, fontWeight: '600', marginBottom: 12, textAlign: 'center' },
   safe: { flex: 1 },
   flex: { flex: 1 },
   scroll: { paddingBottom: 32 },

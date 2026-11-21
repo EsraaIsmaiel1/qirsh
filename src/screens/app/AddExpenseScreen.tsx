@@ -1,12 +1,29 @@
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  View,
+} from 'react-native';
+import { Text, TextInput } from '@/src/components/ui/Text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DynamicIcon } from '@/src/components/wallet/DynamicIcon';
 import { GradientButton } from '@/src/components/wallet/GradientButton';
 import { Header } from '@/src/components/wallet/Header';
-import { useExpenseCategories } from '@/src/hooks/use-wallet-data';
+import { EmptyState, ErrorState, LoadingState } from '@/src/components/wallet/States';
+import { useAddExpense, useExpenseCategories, useWallet } from '@/src/hooks/use-wallet-data';
+import { usePinGate } from '@/src/hooks/use-pin-gate';
+import { walletErrorMessage } from '@/src/services/wallet-api';
+import {
+  formatCents,
+  newIdempotencyKey,
+  parseAmountToCents,
+  sanitizeAmountInput,
+} from '@/src/utils/money';
 import { useWalletTheme } from '@/src/store/wallet-theme-store';
 
 type Step = 'amount' | 'category' | 'confirm';
@@ -14,32 +31,66 @@ type Step = 'amount' | 'category' | 'confirm';
 export default function AddExpenseScreen() {
   const router = useRouter();
   const { palette } = useWalletTheme();
-  const expenseCategories = useExpenseCategories();
+  const categoriesQuery = useExpenseCategories();
+  const wallet = useWallet();
+  const addExpense = useAddExpense();
+  const { authorize, pinModal } = usePinGate();
+  const [authorizing, setAuthorizing] = useState(false);
+
   const [step, setStep] = useState<Step>('amount');
   const [amount, setAmount] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [note, setNote] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [paidFromWallet, setPaidFromWallet] = useState(true);
+  const idempotencyKey = useRef<string>(newIdempotencyKey());
 
+  const expenseCategories = categoriesQuery.data ?? [];
   const cat = expenseCategories.find((c) => c.id === selectedCategory);
+  const amountCents = parseAmountToCents(amount);
+  const currency = wallet.data?.currency ?? 'EGP';
+  const balanceCents = wallet.data?.balanceCents;
+  const overBalance =
+    paidFromWallet && amountCents != null && balanceCents != null && amountCents > balanceCents;
+  const loading = addExpense.isPending || authorizing;
 
   const handleBack = () => {
+    if (loading) return;
     if (step === 'category') setStep('amount');
     else if (step === 'confirm') setStep('category');
     else router.back();
   };
 
   const handleAmountNext = () => {
-    const n = parseFloat(amount);
-    if (amount && n > 0) setStep('category');
+    if (amountCents != null) setStep('category');
   };
 
-  const handleConfirm = () => {
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+  const handleConfirm = async () => {
+    if (!cat || amountCents == null || loading || overBalance) return;
+    // Only spending from the wallet needs the PIN; cash expenses are just tracked.
+    let authToken: string | undefined;
+    if (paidFromWallet) {
+      setAuthorizing(true);
+      const auth = await authorize({
+        title: 'Confirm with PIN',
+        subtitle: `Pay ${currency} ${formatCents(amountCents)} for ${cat.name} from your wallet`,
+      });
+      setAuthorizing(false);
+      if (!auth) return;
+      authToken = auth.token;
+    }
+    try {
+      await addExpense.mutateAsync({
+        amountCents,
+        categoryId: cat.id,
+        note,
+        deductFromWallet: paidFromWallet,
+        idempotencyKey: idempotencyKey.current,
+        authToken,
+      });
       router.replace('/(app)/(tabs)/home');
-    }, 1500);
+    } catch (e) {
+      Alert.alert("Couldn't save expense", walletErrorMessage(e));
+    }
   };
 
   if (step === 'amount') {
@@ -52,7 +103,7 @@ export default function AddExpenseScreen() {
             <Text style={[styles.currency, { color: palette.mutedForeground }]}>EGP</Text>
             <TextInput
               value={amount}
-              onChangeText={setAmount}
+              onChangeText={(t) => setAmount(sanitizeAmountInput(t))}
               placeholder="0.00"
               placeholderTextColor={palette.mutedForeground}
               keyboardType="decimal-pad"
@@ -63,7 +114,7 @@ export default function AddExpenseScreen() {
             variant="error"
             title="Continue"
             onPress={handleAmountNext}
-            disabled={!amount || parseFloat(amount) <= 0}
+            disabled={amountCents == null}
           />
         </View>
       </SafeAreaView>
@@ -75,12 +126,23 @@ export default function AddExpenseScreen() {
       <SafeAreaView style={[styles.safe, { backgroundColor: palette.background }]} edges={['top']}>
         <Header title="Select Category" showBack onBack={handleBack} />
         <ScrollView contentContainerStyle={styles.grid} showsVerticalScrollIndicator={false}>
+          {categoriesQuery.isLoading ? <LoadingState /> : null}
+          {categoriesQuery.isError ? (
+            <ErrorState
+              message={walletErrorMessage(categoriesQuery.error)}
+              onRetry={() => categoriesQuery.refetch()}
+            />
+          ) : null}
+          {categoriesQuery.isSuccess && expenseCategories.length === 0 ? (
+            <EmptyState icon="tag" title="No categories" subtitle="Categories could not be found." />
+          ) : null}
           <View style={styles.gridInner}>
             {expenseCategories.map((c) => (
               <Pressable
                 key={c.id}
                 onPress={() => {
                   setSelectedCategory(c.id);
+                  idempotencyKey.current = newIdempotencyKey();
                   setStep('confirm');
                 }}
                 style={[
@@ -98,7 +160,9 @@ export default function AddExpenseScreen() {
                 </View>
                 <Text style={[styles.catName, { color: palette.foreground }]}>{c.name}</Text>
                 <Text style={[styles.catBudget, { color: palette.mutedForeground }]}>
-                  EGP {c.spent}/{c.budget}
+                  {c.budgetCents != null
+                    ? `${formatCents(c.spentCents)} / ${formatCents(c.budgetCents)}`
+                    : `${formatCents(c.spentCents)} this month`}
                 </Text>
               </Pressable>
             ))}
@@ -108,8 +172,9 @@ export default function AddExpenseScreen() {
     );
   }
 
-  const amt = parseFloat(amount);
-  const remaining = cat ? cat.budget - cat.spent : 0;
+  const amt = amountCents ?? 0;
+  const remaining =
+    cat && cat.budgetCents != null ? cat.budgetCents - cat.spentCents - amt : null;
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: palette.background }]} edges={['top']}>
@@ -117,7 +182,7 @@ export default function AddExpenseScreen() {
       <ScrollView contentContainerStyle={styles.confirmScroll} showsVerticalScrollIndicator={false}>
         <Text style={[styles.centerHint, { color: palette.mutedForeground }]}>Expense Amount</Text>
         <Text style={[styles.bigAmount, { color: palette.error }]}>
-          -EGP {amt.toLocaleString()}
+          -{currency} {formatCents(amt)}
         </Text>
 
         <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
@@ -143,11 +208,40 @@ export default function AddExpenseScreen() {
           </View>
           <View style={[styles.divider, { borderColor: palette.border }]} />
           <View style={styles.rowBetween}>
-            <Text style={{ color: palette.mutedForeground }}>Budget Remaining</Text>
-            <Text style={{ fontWeight: '700', color: palette.foreground }}>
-              EGP {remaining.toLocaleString()}
+            <Text style={{ color: palette.mutedForeground }}>Budget Left After This</Text>
+            <Text
+              style={{
+                fontWeight: '700',
+                color: remaining != null && remaining < 0 ? palette.error : palette.foreground,
+              }}
+            >
+              {remaining == null
+                ? 'No budget set'
+                : `${remaining < 0 ? '-' : ''}${currency} ${formatCents(Math.abs(remaining))}`}
             </Text>
           </View>
+          <View style={[styles.rowBetween, { alignItems: 'center' }]}>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={{ color: palette.foreground, fontWeight: '600' }}>Paid from wallet</Text>
+              <Text style={{ color: palette.mutedForeground, fontSize: 12, marginTop: 2 }}>
+                {paidFromWallet
+                  ? 'Deducted from your balance'
+                  : 'Paid another way (cash/card), only tracked'}
+              </Text>
+            </View>
+            <Switch
+              value={paidFromWallet}
+              onValueChange={setPaidFromWallet}
+              disabled={loading}
+              trackColor={{ true: palette.primary, false: palette.muted }}
+            />
+          </View>
+          {overBalance && balanceCents != null ? (
+            <Text style={{ color: palette.error, fontSize: 13, marginTop: 4 }}>
+              Not enough balance (available {currency} {formatCents(balanceCents)}). Turn off
+              &quot;Paid from wallet&quot; to only track it.
+            </Text>
+          ) : null}
         </View>
 
         <Text style={[styles.label, { color: palette.foreground }]}>Add Note (Optional)</Text>
@@ -156,6 +250,8 @@ export default function AddExpenseScreen() {
           onChangeText={setNote}
           placeholder="What did you spend on?"
           placeholderTextColor={palette.mutedForeground}
+          maxLength={280}
+          editable={!loading}
           multiline
           style={[styles.textarea, { backgroundColor: palette.muted, color: palette.foreground }]}
         />
@@ -165,7 +261,9 @@ export default function AddExpenseScreen() {
           title={loading ? 'Processing...' : 'Confirm Expense'}
           onPress={handleConfirm}
           loading={loading}
+          disabled={overBalance}
         />
+        {pinModal}
       </ScrollView>
     </SafeAreaView>
   );

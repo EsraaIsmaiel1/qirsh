@@ -1,20 +1,38 @@
 import { format } from 'date-fns';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/src/components/ui/Text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DynamicIcon } from '@/src/components/wallet/DynamicIcon';
 import type { WalletPalette } from '@/src/utils/wallet-theme';
 import { Header } from '@/src/components/wallet/Header';
+import { ErrorState, LoadingState } from '@/src/components/wallet/States';
 import { useTransactionById } from '@/src/hooks/use-wallet-data';
+import { walletErrorMessage } from '@/src/services/wallet-api';
+import { formatCents } from '@/src/utils/money';
 import { useWalletTheme } from '@/src/store/wallet-theme-store';
 
 export default function TransactionDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { palette } = useWalletTheme();
-  const transaction = useTransactionById(id);
+  const query = useTransactionById(id);
+  const transaction = query.data;
+
+  if (query.isLoading || query.isError) {
+    return (
+      <SafeAreaView style={[styles.safe, { backgroundColor: palette.background }]} edges={['top']}>
+        <Header title="Transaction Details" showBack onBack={() => router.back()} />
+        {query.isLoading ? (
+          <LoadingState />
+        ) : (
+          <ErrorState message={walletErrorMessage(query.error)} onRetry={() => query.refetch()} />
+        )}
+      </SafeAreaView>
+    );
+  }
 
   if (!transaction) {
     return (
@@ -27,7 +45,8 @@ export default function TransactionDetailScreen() {
     );
   }
 
-  const isIncome = transaction.type === 'income';
+  const isIncoming = transaction.direction === 'in';
+  const isIncome = transaction.type === 'income' || (transaction.type === 'transfer' && isIncoming);
   const isExpense = transaction.type === 'expense';
   const amountColor = isIncome ? palette.success : isExpense ? palette.error : palette.foreground;
 
@@ -61,8 +80,8 @@ export default function TransactionDetailScreen() {
         </View>
 
         <Text style={[styles.amount, { color: amountColor }]}>
-          {isIncome ? '+' : '-'}
-          {transaction.currency} {transaction.amount.toLocaleString()}
+          {isIncoming ? '+' : '-'}
+          {transaction.currency} {formatCents(transaction.amountCents)}
         </Text>
 
         <View style={styles.badgeWrap}>
@@ -90,6 +109,11 @@ export default function TransactionDetailScreen() {
               <Text style={[styles.val, { color: palette.foreground }]}>{transaction.sender}</Text>
             </Row>
           ) : null}
+          {!transaction.affectsBalance ? (
+            <Row label="Paid with" palette={palette}>
+              <Text style={[styles.val, { color: palette.foreground }]}>Cash (tracking only)</Text>
+            </Row>
+          ) : null}
           <Row label="Date" palette={palette}>
             <Text style={[styles.val, { color: palette.foreground }]}>
               {format(new Date(transaction.date), 'MMM dd, yyyy')}
@@ -102,7 +126,7 @@ export default function TransactionDetailScreen() {
           </Row>
           <Row label="Transaction ID" palette={palette} last={!transaction.note}>
             <Text style={[styles.mono, { color: palette.foreground }]}>
-              {transaction.id.toUpperCase()}
+              {transaction.id.slice(0, 8).toUpperCase()}
             </Text>
           </Row>
           {transaction.note ? (

@@ -7,15 +7,15 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
-  TextInput,
   View,
 } from 'react-native';
+import { Text, TextInput } from '@/src/components/ui/Text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { QirshMark } from '@/src/components/brand/QirshMark';
 import { DynamicIcon } from '@/src/components/wallet/DynamicIcon';
 import { GradientButton } from '@/src/components/wallet/GradientButton';
-import { useSession } from '@/src/store/session-store';
+import { authErrorMessage, useSession } from '@/src/store/session-store';
 import { useWalletTheme } from '@/src/store/wallet-theme-store';
 
 export default function LoginScreen() {
@@ -26,14 +26,20 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
+    if (loading) return;
+    setError(null);
     setLoading(true);
-    setTimeout(async () => {
-      setLoading(false);
-      await signIn();
+    try {
+      await signIn(email, password);
       router.replace('/(app)/(tabs)/home');
-    }, 1200);
+    } catch (e) {
+      setError(authErrorMessage(e));
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -54,10 +60,10 @@ export default function LoginScreen() {
             style={styles.hero}
           >
             <View style={styles.heroIcon}>
-              <DynamicIcon name="wallet" size={40} color="#fff" />
+              <QirshMark size={64} body="#FAF6EC" dots="#F0B341" />
             </View>
-            <Text style={styles.heroTitle}>PayWallet</Text>
-            <Text style={styles.heroSub}>Your Smart Digital Wallet</Text>
+            <Text style={styles.heroTitle}>Qirsh</Text>
+            <Text style={styles.heroSub}>Every qirsh counts · كل قرش بيفرق</Text>
           </LinearGradient>
 
           <View style={styles.form}>
@@ -106,6 +112,12 @@ export default function LoginScreen() {
               </Text>
             </Pressable>
 
+            {error ? (
+              <Text style={[styles.error, { color: palette.error }]} accessibilityRole="alert">
+                {error}
+              </Text>
+            ) : null}
+
             <GradientButton
               title={loading ? 'Signing in...' : 'Sign In'}
               onPress={handleLogin}
@@ -131,6 +143,7 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
+  error: { fontSize: 14, fontWeight: '600', marginBottom: 12, textAlign: 'center' },
   safe: { flex: 1 },
   flex: { flex: 1 },
   scroll: { paddingBottom: 32 },
@@ -143,10 +156,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
   },
   heroIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    height: 72,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,

@@ -1,22 +1,84 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/src/components/ui/Text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DynamicIcon } from '@/src/components/wallet/DynamicIcon';
 import type { WalletPalette } from '@/src/utils/wallet-theme';
 import { Header } from '@/src/components/wallet/Header';
+import { usePinGate } from '@/src/hooks/use-pin-gate';
+import {
+  useContacts,
+  useProfile,
+  useSecurityStatus,
+  useTransactionCount,
+} from '@/src/hooks/use-wallet-data';
+import {
+  disableBiometric,
+  enableBiometric,
+  isBiometricAvailable,
+  isBiometricEnabled,
+} from '@/src/services/biometric';
 import { useSession } from '@/src/store/session-store';
+import { initials } from '@/src/utils/money';
 import { useWalletTheme } from '@/src/store/wallet-theme-store';
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { signOut } = useSession();
+  const { signOut, session } = useSession();
+  const userId = session?.user.id ?? '';
   const { palette, scheme, toggleTheme } = useWalletTheme();
   const [currency, setCurrency] = useState<'EGP' | 'USD'>('EGP');
   const [notifications, setNotifications] = useState(true);
   const [biometric, setBiometric] = useState(false);
+  const profile = useProfile();
+  const txCount = useTransactionCount();
+  const contacts = useContacts();
+  const security = useSecurityStatus();
+  const hasPin = security.data?.hasPin ?? false;
+  const { authorize, pinModal } = usePinGate();
+  const [bioAvailable, setBioAvailable] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const [available, enabled] = await Promise.all([
+        isBiometricAvailable(),
+        isBiometricEnabled(userId),
+      ]);
+      if (alive) {
+        setBioAvailable(available);
+        setBiometric(enabled);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [userId]);
+
+  const toggleBiometric = async () => {
+    if (biometric) {
+      await disableBiometric(userId);
+      setBiometric(false);
+      return;
+    }
+    if (!bioAvailable) {
+      Alert.alert(
+        'Not available',
+        'Set up a fingerprint or Face ID in your phone settings first, then try again.'
+      );
+      return;
+    }
+    const auth = await authorize({
+      title: 'Enter your PIN',
+      subtitle: 'Confirm your PIN to turn on fingerprint / Face ID for payments',
+      allowBiometric: false,
+    });
+    if (!auth?.pin) return;
+    setBiometric(await enableBiometric(userId, auth.pin));
+  };
 
   const handleLogout = async () => {
     await signOut();
@@ -29,11 +91,16 @@ export default function SettingsScreen() {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={[styles.card, { backgroundColor: palette.card, borderColor: palette.border }]}>
           <View style={styles.profileRow}>
-            <LinearAvatar />
+            <LinearAvatar text={initials(profile.data?.fullName || profile.data?.email)} />
             <View style={styles.profileText}>
-              <Text style={[styles.profileName, { color: palette.foreground }]}>Mohamed Ahmed</Text>
-              <Text style={[styles.profileEmail, { color: palette.mutedForeground }]}>
-                mohamed.ahmed@email.com
+              <Text style={[styles.profileName, { color: palette.foreground }]} numberOfLines={1}>
+                {profile.data?.fullName || '—'}
+              </Text>
+              <Text
+                style={[styles.profileEmail, { color: palette.mutedForeground }]}
+                numberOfLines={1}
+              >
+                {profile.data?.email ?? ''}
               </Text>
             </View>
             <Pressable style={[styles.smallIcon, { backgroundColor: palette.muted }]}>
@@ -42,13 +109,17 @@ export default function SettingsScreen() {
           </View>
           <View style={[styles.statsRow, { borderTopColor: palette.border }]}>
             <View style={styles.stat}>
-              <Text style={[styles.statNum, { color: palette.primary }]}>24</Text>
+              <Text style={[styles.statNum, { color: palette.primary }]}>
+                {txCount.data ?? '—'}
+              </Text>
               <Text style={[styles.statLabel, { color: palette.mutedForeground }]}>
                 Transactions
               </Text>
             </View>
             <View style={styles.stat}>
-              <Text style={[styles.statNum, { color: palette.success }]}>5</Text>
+              <Text style={[styles.statNum, { color: palette.success }]}>
+                {contacts.data?.length ?? '—'}
+              </Text>
               <Text style={[styles.statLabel, { color: palette.mutedForeground }]}>Contacts</Text>
             </View>
           </View>
@@ -86,20 +157,29 @@ export default function SettingsScreen() {
           <SettingsToggleRow
             palette={palette}
             icon="shield"
-            title="Biometric Login"
-            subtitle={biometric ? 'Enabled' : 'Disabled'}
+            title="Fingerprint / Face ID"
+            subtitle={
+              biometric
+                ? 'Used to confirm payments'
+                : bioAvailable
+                  ? 'Off'
+                  : 'Not set up on this device'
+            }
             value={biometric}
-            onToggle={() => setBiometric(!biometric)}
+            onToggle={toggleBiometric}
           />
           <SettingsRow
             palette={palette}
-            icon="shield"
-            title="Change PIN"
-            subtitle="Update your security PIN"
-            onPress={() => {}}
+            icon="lock"
+            title={hasPin ? 'Change PIN' : 'Set Payment PIN'}
+            subtitle={
+              hasPin ? 'Update your 6-digit payment PIN' : 'Required before you can send money'
+            }
+            onPress={() => router.push('/(app)/change-pin')}
             showChevron
           />
         </View>
+        {pinModal}
 
         <Pressable
           onPress={handleLogout}
@@ -114,15 +194,15 @@ export default function SettingsScreen() {
   );
 }
 
-function LinearAvatar() {
+function LinearAvatar({ text }: { text: string }) {
   return (
     <LinearGradient
-      colors={['#818cf8', '#6366f1']}
+      colors={['#13877B', '#0B5F57']}
       style={styles.avatar}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
     >
-      <Text style={styles.avatarText}>MA</Text>
+      <Text style={styles.avatarText}>{text}</Text>
     </LinearGradient>
   );
 }

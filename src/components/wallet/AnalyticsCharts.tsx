@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '@/src/components/ui/Text';
 import Svg, { Circle, Line, Polyline } from 'react-native-svg';
 
 import type { WalletPalette } from '@/src/utils/wallet-theme';

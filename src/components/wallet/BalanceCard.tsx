@@ -1,23 +1,24 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/src/components/ui/Text';
 
 import { DynamicIcon } from '@/src/components/wallet/DynamicIcon';
 import { useWalletTheme } from '@/src/store/wallet-theme-store';
+import { formatCents } from '@/src/utils/money';
 
 type BalanceCardProps = {
-  balance: number;
+  /** undefined while loading */
+  balanceCents?: number;
   currency: string;
+  walletTag?: string;
 };
 
-export function BalanceCard({ balance, currency }: BalanceCardProps) {
+export function BalanceCard({ balanceCents, currency, walletTag }: BalanceCardProps) {
   const [visible, setVisible] = useState(true);
   const { palette } = useWalletTheme();
 
-  const formatted = balance.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  const formatted = balanceCents == null ? '—' : formatCents(balanceCents);
 
   return (
     <LinearGradient
@@ -43,7 +44,7 @@ export function BalanceCard({ balance, currency }: BalanceCardProps) {
         </Text>
         <View style={styles.walletRow}>
           <Text style={styles.walletLabel}>Wallet ID:</Text>
-          <Text style={styles.walletId}>****8392</Text>
+          <Text style={styles.walletId}>{walletTag ? `@${walletTag}` : '—'}</Text>
         </View>
       </View>
     </LinearGradient>
@@ -57,23 +58,24 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
   },
+  // The brand's coin motif: two gold dots stepping up to the right, like the logo.
   deco1: {
     position: 'absolute',
-    top: -40,
-    right: -40,
-    width: 128,
-    height: 128,
-    borderRadius: 64,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    top: 30,
+    right: 44,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#F0B341',
   },
   deco2: {
     position: 'absolute',
-    bottom: -30,
-    left: -30,
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    top: 16,
+    right: 22,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#F0B341',
   },
   inner: {
     zIndex: 1,
@@ -83,6 +85,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
+    marginRight: 56,
   },
   label: {
     color: 'rgba(255,255,255,0.9)',

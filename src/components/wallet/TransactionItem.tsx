@@ -1,11 +1,13 @@
 import { useRouter } from 'expo-router';
 import { formatDistanceToNow } from 'date-fns';
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/src/components/ui/Text';
 
 import { DynamicIcon } from '@/src/components/wallet/DynamicIcon';
 import type { Transaction } from '@/src/types/wallet';
 import { useWalletTheme } from '@/src/store/wallet-theme-store';
+import { formatCents } from '@/src/utils/money';
 
 type TransactionItemProps = {
   transaction: Transaction;
@@ -15,7 +17,8 @@ type TransactionItemProps = {
 export function TransactionItem({ transaction, onPress }: TransactionItemProps) {
   const router = useRouter();
   const { palette } = useWalletTheme();
-  const isIncome = transaction.type === 'income';
+  const isIncoming = transaction.direction === 'in';
+  const isIncome = transaction.type === 'income' || (transaction.type === 'transfer' && isIncoming);
   const isExpense = transaction.type === 'expense';
 
   const iconBg = isIncome
@@ -56,8 +59,8 @@ export function TransactionItem({ transaction, onPress }: TransactionItemProps) 
       </View>
       <View style={styles.right}>
         <Text style={[styles.amount, { color: amountColor }]}>
-          {isIncome ? '+' : '-'}
-          {transaction.currency} {transaction.amount.toLocaleString()}
+          {isIncoming ? '+' : '-'}
+          {transaction.currency} {formatCents(transaction.amountCents)}
         </Text>
         <Text style={[styles.status, { color: palette.mutedForeground }]}>
           {transaction.status}

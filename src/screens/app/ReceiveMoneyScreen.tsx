@@ -1,20 +1,28 @@
 import * as Clipboard from 'expo-clipboard';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Share, StyleSheet, View } from 'react-native';
+import { Text } from '@/src/components/ui/Text';
 import QRCode from 'react-native-qrcode-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DynamicIcon } from '@/src/components/wallet/DynamicIcon';
 import { Header } from '@/src/components/wallet/Header';
+import { ErrorState, LoadingState } from '@/src/components/wallet/States';
+import { useProfile } from '@/src/hooks/use-wallet-data';
+import { walletErrorMessage } from '@/src/services/wallet-api';
 import { useWalletTheme } from '@/src/store/wallet-theme-store';
 
-const WALLET_ADDRESS = 'paywallet_user_8392';
 
 export default function ReceiveMoneyScreen() {
   const router = useRouter();
   const { palette } = useWalletTheme();
   const [copied, setCopied] = useState(false);
+  const profile = useProfile();
+  const walletTag = profile.data?.walletTag ?? '';
+  const WALLET_ADDRESS = walletTag ? `@${walletTag}` : '';
+  // Deep link (app scheme "qirsh") so a scanner can open Send pre-filled.
+  const qrValue = `qirsh://send?to=${encodeURIComponent(walletTag)}`;
 
   const handleCopy = async () => {
     await Clipboard.setStringAsync(WALLET_ADDRESS);
@@ -25,13 +33,26 @@ export default function ReceiveMoneyScreen() {
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `Send money to my PayWallet: ${WALLET_ADDRESS}`,
-        title: 'PayWallet',
+        message: `Send money to my Qirsh wallet: ${WALLET_ADDRESS}\n${qrValue}`,
+        title: 'Qirsh',
       });
     } catch {
       /* ignore */
     }
   };
+
+  if (!walletTag) {
+    return (
+      <SafeAreaView style={[styles.safe, { backgroundColor: palette.background }]} edges={['top']}>
+        <Header title="Receive Money" showBack onBack={() => router.back()} />
+        {profile.isError ? (
+          <ErrorState message={walletErrorMessage(profile.error)} onRetry={() => profile.refetch()} />
+        ) : (
+          <LoadingState />
+        )}
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: palette.background }]} edges={['top']}>
@@ -41,7 +62,7 @@ export default function ReceiveMoneyScreen() {
           style={[styles.qrCard, { backgroundColor: palette.card, borderColor: palette.border }]}
         >
           <View style={styles.qrInner}>
-            <QRCode value={WALLET_ADDRESS} size={200} backgroundColor="#fff" color="#111" />
+            <QRCode value={qrValue} size={200} backgroundColor="#fff" color="#111" />
           </View>
           <Text style={[styles.qrHint, { color: palette.mutedForeground }]}>
             Scan this QR code to send money to your wallet

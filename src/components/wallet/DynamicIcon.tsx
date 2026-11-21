@@ -43,6 +43,12 @@ const NAME_MAP: Record<string, IconName> = {
   trendingdown: 'trending-down',
   'trending-up': 'trending-up',
   'trending-down': 'trending-down',
+  search: 'magnify',
+  tag: 'tag-outline',
+  'alert-circle': 'alert-circle-outline',
+  users: 'account-multiple-outline',
+  'cash': 'cash',
+  fingerprint: 'fingerprint',
 };
 
 function toKey(name: string): string {

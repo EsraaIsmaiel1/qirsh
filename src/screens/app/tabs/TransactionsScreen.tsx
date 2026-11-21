@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/src/components/ui/Text';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DynamicIcon } from '@/src/components/wallet/DynamicIcon';
 import { Header } from '@/src/components/wallet/Header';
 import { TransactionItem } from '@/src/components/wallet/TransactionItem';
+import { ErrorState, LoadingState } from '@/src/components/wallet/States';
 import { useTransactions } from '@/src/hooks/use-wallet-data';
+import { walletErrorMessage } from '@/src/services/wallet-api';
 import { useWalletTheme } from '@/src/store/wallet-theme-store';
 
 type Filter = 'all' | 'income' | 'expense' | 'transfer';
@@ -21,7 +24,8 @@ export default function TransactionsScreen() {
   const { palette } = useWalletTheme();
   const [filter, setFilter] = useState<Filter>('all');
 
-  const list = useTransactions(filter);
+  const query = useTransactions(filter);
+  const list = query.data ?? [];
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: palette.background }]} edges={['top']}>
@@ -74,8 +78,19 @@ export default function TransactionsScreen() {
         style={styles.list}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={query.isRefetching}
+            onRefresh={() => query.refetch()}
+            tintColor={palette.primary}
+          />
+        }
       >
-        {list.length > 0 ? (
+        {query.isLoading ? (
+          <LoadingState />
+        ) : query.isError ? (
+          <ErrorState message={walletErrorMessage(query.error)} onRetry={() => query.refetch()} />
+        ) : list.length > 0 ? (
           list.map((t) => <TransactionItem key={t.id} transaction={t} />)
         ) : (
           <View style={styles.empty}>
